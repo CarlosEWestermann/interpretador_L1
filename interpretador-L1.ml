@@ -16,6 +16,8 @@ type tipo =
   | TyBool
   | TyFn of tipo * tipo
   | TyPair of tipo * tipo 
+  | TyRef of tipo
+  | TyUnit
   
   
 (* expressões da linguagem L1 *)
@@ -41,24 +43,35 @@ type expr =
   | Dolar of expr * expr 
   | Question of expr * expr * expr
   | Pipe of expr * expr
+  | Asg of expr * expr
+  | Dref of expr
+  | New of expr
+  | Seq of expr * expr
+  | Whl of expr * expr 
+  | Skip
+
             
 
   
  (* ambiente de tipo, valores e ambiente de execução *)              
 
-type tenv = (ident * tipo) list
+type tenv = (ident * tipo) list 
+    
+type mem = (int * tipo) list
     
 type valor =
     VNum of int
   | VBool of bool
   | VPair of valor * valor
   | VClos  of ident * expr * renv
-  | VRclos of ident * ident * expr * renv 
+  | VRclos of ident * ident * expr * renv
 and 
   renv = (ident * valor) list 
+and
+  mem = (int * valor) list 
   
  
-    (* funções de busca e de atualizaçã o de ambintes *)   
+    (* funções de busca e de atualizaçã o de ambientes *)   
 
 
 let rec lookup a k  =
@@ -197,8 +210,44 @@ let rec typeinfer (tenv:tenv) (e:expr) : tipo =
            else raise (TypeError "tipo de entrada da função diferente do tipo do argumento") 
        | _ -> raise (TypeError "1.o operando do pipe não é do tipo esperado pelo 2.o operando do pipe" ))
       
-                  
+  | Skip -> TyUnit 
   
+  | Asg (e1, e2) -> 
+      let t1 = typeinfer tenv e1 in 
+      let t2 = typeinfer tenv e2 in
+      (match t1 with
+         TyRef(t_in) ->
+           if t2 = t_in then TyUnit
+           else raise (TypeError "tipo de ref do primeiro argumento diferente do segundo argumento")
+       | _ -> raise (TypeError "primeiro operando não é ref"))
+
+           
+  | Dref (e1) -> 
+      let t1 = typeinfer tenv e1 in
+      (match t1 with
+         TyRef(t_in) -> t_in
+       | _ -> raise (TypeError "argumento não é uma referência")) 
+      
+  | New (e1) ->
+      let t1 = typeinfer tenv e1 
+      in TyRef(t1)
+        
+  | Seq (e1, e2) ->
+      let t1 = typeinfer tenv e1 in 
+      let t2 = typeinfer tenv e2 in
+      (match t1 with
+         TyUnit -> t2
+       | _ -> raise (TypeError "primeiro operando não é do tipo unit"))
+
+  | Whl (e1, e2) -> 
+      let t1 = typeinfer tenv e1 in 
+      let t2 = typeinfer tenv e2 in
+      (match t1 with
+         TyBool -> 
+           if t2 = TyUnit then t2
+           else raise (TypeError "segundo argumento não é do tipo unit")
+       | _ -> raise (TypeError "primeiro operando não é do tipo bool"))
+      
 (**+++++++++++++++++++++++++++++++++++++++++*)
 (*                 AVALIADOR                *)
 (*++++++++++++++++++++++++++++++++++++++++++*)
@@ -319,6 +368,7 @@ let rec eval (renv:renv) (e:expr) : valor =
            let renv'' =  update renv' x v1 in
            eval  (update  renv'' f v2) e 
        | _ -> raise BugTypeInfer)
+      
                   
                   
 (* função auxiliar que converte tipo para string *)
@@ -362,7 +412,7 @@ let int_bse (e:expr) : unit =
  (*                TESTES                  *)
  (*++++++++++++++++++++++++++++++++++++++++*)
 
-
+let test_env = [("y", VNum 10)]
 
 (*
      let x:int = 2 
@@ -424,9 +474,9 @@ let tst3 = Let("x", TyInt, Num 10, e2)
 
    let rec pow: int -> (int --> int) = 
           fn x:int => fn y:int => if y = 0 then 1 else x * (pow x (y-1)) 
-   in (pow 3) 4 
+in (pow 3) 4 
      
-  do tipo int avalia para  81
+do tipo int avalia para  81
 
 *)          
 
@@ -450,7 +500,6 @@ let pow =
                                             
   
     (*  5 |> inc 
-    
         do tipo int avalia para 6   *)
 
 
@@ -472,6 +521,20 @@ let pipe2 =
     (*  $ ( 6 = (5 |> inc),  pow 3 4)    é do tipo int e  avalia para 80 
 *)
 let tst_dolar  = Dolar(Binop(Eq, Num 20, pipe1), pow)
+    
+let teste1 = Let("x", TyRef TyInt, New (Num 3),
+                 Let("y", TyInt, Dref (Var "x"), 
+                     Seq(Asg(Var "x", Binop(Sum, Dref(Var "x"), Num 1)), 
+                         Binop(Sum, Var "y",  Dref (Var "x"))))) 
+    
+let counter1 = Let("counter", TyRef TyInt, New (Num 0),
+                   Let("next_val", TyFn(TyUnit, TyInt),
+                       Fn("w", TyUnit, 
+                          Seq(Asg(Var "counter",Binop(Sum, Dref(Var "counter"), Num 1)),
+                              Dref (Var "counter"))),
+                       Binop(Sum, App (Var "next_val", Skip), 
+                             App (Var "next_val", Skip))))
+    
     
     
     
