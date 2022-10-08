@@ -48,7 +48,7 @@ type expr =
   | New of expr
   | Seq of expr * expr
   | Whl of expr * expr 
-  | Skip of unit
+  | Skip
 
             
 
