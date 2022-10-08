@@ -71,7 +71,7 @@ and
   mem = (int * valor) list 
   
  
-    (* funções de busca e de atualizaçã o de ambientes *)   
+    (* funções de busca e de atualização de ambientes *)   
 
 
 let rec lookup a k  =
@@ -80,6 +80,18 @@ let rec lookup a k  =
   | (y,i) :: tl -> if (y=k) then Some i else lookup tl k 
        
 let  update a k i = (k,i) :: a  
+
+(* NEW *)
+let rec findLastKey mem k v =
+  match mem with
+    [] -> k
+  | (y, i) :: tl -> allocate k+1 v
+
+let rec allocate mem k v = (findLastKey mem k v, v) :: mem
+
+let rec updateMem mem1 mem2 e1 e2 = 
+  match mem2 with
+   (k, v)::tl -> if k = e1 then mem1::(k,v)::tl else updateMem mem1::(k,v) tl e1 e2
   
 (**+++++++++++++++++++++++++++++++++++++++++*)
 (*         INFERÊNCIA DE TIPOS              *)
@@ -273,7 +285,8 @@ let rec compute (oper: op) (v1: valor) (v2: valor) : valor =
   | _ -> raise BugTypeInfer
 
 
-let rec eval (renv:renv) (e:expr) : valor =
+
+let rec eval (renv:renv) (mem:mem) (e:expr) : valor =
   match e with
     Num n -> VNum n
                
@@ -369,6 +382,30 @@ let rec eval (renv:renv) (e:expr) : valor =
            eval  (update  renv'' f v2) e 
        | _ -> raise BugTypeInfer)
       
+  | Skip() -> unit
+
+  | Asg(e1, e2) ->
+    let exists = lookup mem e1
+    let t1 = typeinfer [] exists in
+    let t2 = typeinfer [] e2 in
+    (match t1 with
+      None -> raise (TypeError ("lista vazia, tentando atualizar valor inexistente"))
+      | t2 -> Skip(updateMem [] mem e1 e2) 
+      (* FALTA O SKIPPPPPPPPPPPP -> testar *)
+      | raise BugTypeInfer)
+
+
+  | Deref(e1) -> 
+      (match lookup mem e1 with
+       Some t -> t
+     | None -> raise (TypeError ("variavel nao declarada:" ^ x)))  (* arrumar o tipo do erro *)
+    
+  | New(e1) -> allocate mem e1 0
+
+      
+      
+  | _ -> raise BugTypeInfer
+      
                   
                   
 (* função auxiliar que converte tipo para string *)
@@ -379,6 +416,7 @@ let rec ttos (t:tipo) : string =
   | TyBool -> "bool"
   | TyFn(t1,t2)   ->  "("  ^ (ttos t1) ^ " --> " ^ (ttos t2) ^ ")"
   | TyPair(t1,t2) ->  "("  ^ (ttos t1) ^ " * "   ^ (ttos t2) ^ ")"
+  | _ -> raise BugTypeInfer
 
 (* função auxiliar que converte valor para string *)
 
