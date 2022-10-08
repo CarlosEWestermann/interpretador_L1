@@ -48,7 +48,7 @@ type expr =
   | New of expr
   | Seq of expr * expr
   | Whl of expr * expr 
-  | Skip
+  | Skip of unit
 
             
 
@@ -82,16 +82,16 @@ let rec lookup a k  =
 let  update a k i = (k,i) :: a  
 
 (* NEW *)
-let rec findLastKey mem k v =
+let rec findLastKey mem k =
   match mem with
     [] -> k
-  | (y, i) :: tl -> allocate k+1 v
+  | (y, i) :: tl -> findLastKey mem k+1
 
-let rec allocate mem k v = (findLastKey mem k v, v) :: mem
+let rec allocate mem k v = (findLastKey mem k, v) :: mem
 
 let rec updateMem mem1 mem2 e1 e2 = 
   match mem2 with
-   (k, v)::tl -> if k = e1 then mem1::(k,v)::tl else updateMem mem1::(k,v) tl e1 e2
+   (k, v)::tl -> if k = e1 then mem1::mem2 else updateMem mem1::(k,v) tl e1 e2
   
 (**+++++++++++++++++++++++++++++++++++++++++*)
 (*         INFERÊNCIA DE TIPOS              *)
@@ -391,8 +391,7 @@ let rec eval (renv:renv) (mem:mem) (e:expr) : valor =
     (match t1 with
       None -> raise (TypeError ("lista vazia, tentando atualizar valor inexistente"))
       | t2 -> Skip(updateMem [] mem e1 e2) 
-      (* FALTA O SKIPPPPPPPPPPPP -> testar *)
-      | raise BugTypeInfer)
+      | _ -> raise BugTypeInfer)
 
 
   | Deref(e1) -> 
