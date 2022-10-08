@@ -385,7 +385,7 @@ let rec eval (renv:renv) (mem:mem) (e:expr) : valor =
   | Skip() -> unit
 
   | Asg(e1, e2) ->
-    let exists = lookup mem e1
+    let exists = lookup mem e1 in
     let t1 = typeinfer [] exists in
     let t2 = typeinfer [] e2 in
     (match t1 with
